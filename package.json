@@ -2,6 +2,7 @@
   "name": "hello-world-codeql-fixture",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Minimal local JavaScript fixture for CodeQL analysis.",
   "scripts": {
     "start": "node index.js",

@@ -1,28 +1,32 @@
-const http = require("node:http");
-const { URL } = require("node:url");
+import { createServer } from "node:http";
 
 const port = Number(process.env.PORT || 3000);
 
-function greetingFor(pathname) {
-  return pathname === "/hello" ? "Hello world\n" : "Not found\n";
+function parseRequest(rawUrl) {
+  const { pathname } = new URL(rawUrl, "http://localhost");
+
+  return pathname === "/" ? "root" : "not-found";
 }
 
-function createResponse(requestUrl) {
-  const { pathname } = new URL(requestUrl, "http://localhost");
-  const body = greetingFor(pathname);
-
-  return {
-    body,
-    statusCode: pathname === "/hello" ? 200 : 404,
-  };
+function buildGreeting(route) {
+  return route === "root" ? "Hello, world!\n" : "Not found\n";
 }
 
-const server = http.createServer((request, response) => {
-  const result = createResponse(request.url);
+function sendGreeting(response, body) {
+  const statusCode = body === "Hello, world!\n" ? 200 : 404;
 
-  response.writeHead(result.statusCode, { "content-type": "text/plain; charset=utf-8" });
-  response.end(result.body);
-});
+  response.writeHead(statusCode, { "content-type": "text/plain; charset=utf-8" });
+  response.end(body);
+}
+
+function requestListener(request, response) {
+  const route = parseRequest(request.url);
+  const greeting = buildGreeting(route);
+
+  sendGreeting(response, greeting);
+}
+
+const server = createServer(requestListener);
 
 server.listen(port, () => {
   console.log(`Hello-world fixture listening on http://localhost:${port}`);
