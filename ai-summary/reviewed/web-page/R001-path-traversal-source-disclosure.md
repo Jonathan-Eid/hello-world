@@ -2,7 +2,7 @@
 
 **Date**: 2026-09-22
 **Subsystem**: web-page
-**Source Hypothesis Batch**: /app/workspace/ai-summary/hypothesis/web-page/900-hypothesis-batch.md
+**Source Hypothesis Batch**: /app/workspace/ai-summary/hypothesis/web-page/001-hypothesis-batch.md
 **Candidate ID**: C1
 **Verdict**: VIABLE
 **Severity**: High
@@ -36,23 +36,23 @@ schema = 1
 verdict = "VIABLE"
 failed_at = "reviewer"
 subsystem = "web-page"
-route_id = "file_endpoint_path_traversal"
-weakness = "path-traversal"
+route_id = "web_page_file_path_traversal"
+weakness = "path_traversal"
 record_kind = "single_path"
-path = ["GET /file", "parseRequest", "sendFile", "readFile(join(publicDir, name))"]
-sink = "readFile"
-sink_role = "file_access"
-impact_class = "information_disclosure"
-route_family = "file_read_endpoint"
-material_effect = "read_arbitrary_files"
-target_functions = ["index.js:sendFile:27-36", "index.js:parseRequest:8-14"]
-scope.trust_boundary = "http_request"
+path = ["GET /file", "sendFile"]
+sink = "fs.readFile"
+sink_role = "file_read_operation"
+impact_class = "arbitrary_file_read"
+route_family = "path_traversal"
+material_effect = "information_disclosure"
+target_functions = ["index.js:sendFile", "index.js:parseRequest"]
+scope.trust_boundary = "attacker_controls_query_parameter"
 scope.protocol_phase = "request_parsing"
 scope.auth_state = "unauthenticated"
-scope.attacker_control = "query_parameter_name"
-scope.parser_state = "url_decoded"
-scope.size_class = "unknown"
-input_shape_tags = ["path_traversal_sequence"]
+scope.attacker_control = "GET_query_parameter_name"
+scope.parser_state = "url_parsed_before_join"
+scope.size_class = "arbitrary"
+input_shape_tags = ["relative_path_with_parent_refs"]
 defense_tags = []
 negative_claim.claim_kind = "viable_candidate_not_blocked"
 negative_claim.conditional = false
