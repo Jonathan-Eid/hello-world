@@ -2,11 +2,11 @@
 
 **Date**: 2026-09-22
 **Subsystem**: web-page
-**Source Hypothesis Batch**: /app/workspace/ai-summary/hypothesis/web-page/001-hypothesis-batch.md
+**Source Hypothesis Batch**: /app/workspace/ai-summary/hypothesis/web-page/900-hypothesis-batch.md
 **Candidate ID**: C1
 **Verdict**: VIABLE
 **Severity**: High
-**Reviewed by**: claude-haiku-4-5, default
+**Reviewed by**: claude-haiku-4-5
 
 ## Trace Summary
 
