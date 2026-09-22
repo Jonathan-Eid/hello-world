@@ -1,3 +1,3 @@
-# Confirmed Findings Summary
+# Confirmed Security Findings
 
-- [R001: Path traversal to read application source code](web-page/R001-path-traversal-source-disclosure.md) — Information Disclosure (High)
+- [R001: Path Traversal in /file Endpoint](web-page/R001-path-traversal-file-read.md) — Allows arbitrary file read through directory traversal
